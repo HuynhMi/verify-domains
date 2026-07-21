@@ -43,9 +43,11 @@ def rdap_age(dom):
                 return (datetime.date.today()-datetime.date.fromisoformat(e['eventDate'][:10])).days
     except: return None
     return None
-def urlscan(dom):
+def urlscan(dom, token=None):
     try:
-        with urllib.request.urlopen('https://urlscan.io/api/v1/search/?q=domain:%s&size=5'%dom,timeout=12) as r: j=json.load(r)
+        req=urllib.request.Request('https://urlscan.io/api/v1/search/?q=domain:%s&size=5'%dom)
+        if token: req.add_header('API-Key',token)   # khoá urlscan.io do người dùng nhập, không lưu trên server
+        with urllib.request.urlopen(req,timeout=12) as r: j=json.load(r)
         res=j.get('results',[])
         title=' | '.join({x.get('page',{}).get('title','') for x in res if x.get('page',{}).get('title')})
         urls=' '.join(x.get('page',{}).get('url','') for x in res)
@@ -76,10 +78,10 @@ def fetch_page(dom):
                 'words':words,'ads':len(set(ADS_NET.findall(html)))}
     return {'pv':PV,'ok':False,'ptitle':'','pdesc':'','ptext':'','words':0,'ads':0}
 
-def enrich(dom):
+def enrich(dom, token=None):
     e=CACHE.get(dom)
     if e is None:
-        t,u,m=urlscan(dom); a=rdap_age(dom)
+        t,u,m=urlscan(dom,token); a=rdap_age(dom)
         e={'title':t,'urls':u,'malicious':m,'age_days':a}; time.sleep(0.2)
     if e.get('pv')!=PV: e.update(fetch_page(dom))
     CACHE[dom]=e; return e
@@ -125,7 +127,7 @@ def classify(dom, on=None):
     return dom, loai, verdict, ' ; '.join(reasons)
 
 JOBS={}
-def run_job(jid, domains=None, excel=None, orig='ket_qua.xlsx', on=None):
+def run_job(jid, domains=None, excel=None, orig='ket_qua.xlsx', on=None, token=None):
     J=JOBS[jid]
     try:
         is_csv=False
@@ -149,7 +151,7 @@ def run_job(jid, domains=None, excel=None, orig='ket_qua.xlsx', on=None):
         norm=lambda d: d.strip().lower().replace('http://','').replace('https://','').split('/')[0]
         todo=sorted({norm(d) for d in uniq if norm(d)})
         with cf.ThreadPoolExecutor(8) as ex:
-            for i,_ in enumerate(ex.map(enrich,todo),1): J['done']=i
+            for i,_ in enumerate(ex.map(lambda d: enrich(d,token),todo),1): J['done']=i
         for d in uniq:
             dom,loai,verdict,reason=classify(d,on); cache_res[d]=(loai,verdict,reason)
             rows.append({'website':dom,'loai':loai,'verdict':verdict,'reason':reason})
@@ -192,6 +194,11 @@ table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}th,td{p
 .note{font-size:11px;color:#8a93a6;margin-top:12px;line-height:1.5}
 .checks{margin:12px 0;border:1px solid #e3e8f2;border-radius:10px;padding:8px 12px;background:#fafbfe}
 .checks summary{cursor:pointer;font-weight:600;font-size:13px;color:#1f3864}
+.tokbody{padding:6px 2px 2px}
+#tok{width:100%;border:1px solid #cfd7e6;border-radius:9px;padding:9px 11px;font:13px Menlo,monospace}
+.tokrem{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#556;margin:8px 12px 0 0}
+.tokbtn{font-size:12px;border:1px solid #d3dae7;background:#f6f8fc;border-radius:8px;padding:5px 11px;cursor:pointer;margin-top:8px}
+.toknote{font-size:11px;color:#8a93a6;line-height:1.55;margin:8px 0 0}
 .ckgrp{margin:10px 0 2px;padding-left:10px;border-left:3px solid #d3dae7}
 .ckgrp>span{display:block;font-size:11px;color:#5a6478;font-weight:700;letter-spacing:.3px;margin-bottom:4px}
 .ckgrp label{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;margin:2px 12px 2px 0;cursor:pointer}
@@ -215,6 +222,16 @@ table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}th,td{p
  <div class="tabs"><button id="t1" class="on">Nhập website (mỗi dòng 1 cái)</button><button id="t2">Chọn file Excel / CSV</button></div>
  <div id="m1"><textarea id="ta" placeholder="career209.com&#10;pessmokepatch.com&#10;cnn.com"></textarea></div>
  <div id="m2" style="display:none"><label class="drop" id="drop"><input type="file" id="file" accept=".xlsx,.xls,.csv"><div id="dtext"><b>Kéo Excel hoặc CSV vào đây</b><br>hoặc bấm chọn</div></label></div>
+ <details class="checks tok"><summary>🔑 Token urlscan.io (tuỳ chọn)</summary>
+  <div class="tokbody">
+   <input type="password" id="tok" placeholder="Dán API key urlscan.io — để trống vẫn chạy được">
+   <label class="tokrem"><input type="checkbox" id="tokrem" checked>Nhớ token trên trình duyệt này</label>
+   <button type="button" id="tokclear" class="tokbtn">Xoá token</button>
+   <p class="toknote">Token giúp gọi urlscan ổn định hơn, ít bị giới hạn tần suất. Lấy miễn phí ở
+    urlscan.io → Settings → API Keys. Token <b>chỉ lưu trong trình duyệt của bạn</b> (localStorage),
+    server không ghi lại; mỗi lần chạy gửi kèm rồi thôi.</p>
+  </div>
+ </details>
  <details class="checks" open><summary>⚙︎ Tầng kiểm tra — chọn loại cần lọc</summary>
   <div class="ckgrp t1"><span>🚨 Cấp 1 · Loại ngay (Brand Safety)</span>
    <label class="off" title="Nguồn urlscan không trả về dữ liệu verdict — phép kiểm tra này không bao giờ chạy. Cần đổi sang Google Safe Browsing."><input type="checkbox" disabled>Malware / Threat</label>
@@ -323,6 +340,14 @@ table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}th,td{p
 <script>
 let mode=1,chosen=null;
 const $=id=>document.getElementById(id);
+// Token urlscan: nho trong localStorage cua trinh duyet nay
+const TOK_KEY='urlscan_token';
+try{const saved=localStorage.getItem(TOK_KEY); if(saved){$('tok').value=saved;}}catch(e){}
+$('tokclear').onclick=()=>{$('tok').value='';try{localStorage.removeItem(TOK_KEY);}catch(e){}};
+function saveTok(){try{
+  if($('tokrem').checked && $('tok').value.trim()) localStorage.setItem(TOK_KEY,$('tok').value.trim());
+  else localStorage.removeItem(TOK_KEY);
+}catch(e){}}
 $('t1').onclick=()=>{mode=1;$('t1').classList.add('on');$('t2').classList.remove('on');$('m1').style.display='';$('m2').style.display='none';};
 $('t2').onclick=()=>{mode=2;$('t2').classList.add('on');$('t1').classList.remove('on');$('m2').style.display='';$('m1').style.display='none';};
 $('file').onchange=e=>{if(e.target.files[0]){chosen=e.target.files[0];$('dtext').innerHTML='<b>'+chosen.name+'</b><br>sẵn sàng';}};
@@ -335,6 +360,7 @@ $('go').onclick=async()=>{
  else{if(!chosen){alert('Chọn file Excel');return;} fd.append('file',chosen);}
  const checks=[...document.querySelectorAll('input[data-k]:checked')].map(i=>i.dataset.k).join(',');
  fd.append('checks',checks);
+ const tok=$('tok').value.trim(); if(tok) fd.append('token',tok); saveTok();
  $('go').disabled=true;$('res').style.display='none';$('wrapT').style.display='none';$('bar').style.display='block';
  const {id}=await (await fetch('/process',{method:'POST',body:fd})).json();
  const t=setInterval(async()=>{
@@ -385,12 +411,13 @@ class H(http.server.BaseHTTPRequestHandler):
         form=cgi.FieldStorage(fp=s.rfile,headers=s.headers,environ={'REQUEST_METHOD':'POST','CONTENT_TYPE':s.headers['Content-Type']})
         jid=uuid.uuid4().hex; JOBS[jid]={'status':'run','done':0,'total':0}
         on=set(x for x in form.getvalue('checks','').split(',') if x) or set(DEFAULT_ON)
+        token=(form.getvalue('token','') or '').strip() or None   # khoá urlscan do người dùng nhập; chỉ dùng cho lần chạy này, không ghi ra đĩa
         if 'file' in form and form['file'].filename:
             fi=form['file']; orig=os.path.basename(fi.filename); ext=os.path.splitext(orig)[1] or '.xlsx'; tmp=os.path.join(OUTDIR,'_tmp_'+jid+ext); open(tmp,'wb').write(fi.file.read())
-            threading.Thread(target=run_job,args=(jid,),kwargs={'excel':tmp,'orig':orig,'on':on},daemon=True).start()
+            threading.Thread(target=run_job,args=(jid,),kwargs={'excel':tmp,'orig':orig,'on':on,'token':token},daemon=True).start()
         else:
             doms=[l.strip() for l in form.getvalue('domains','').splitlines() if l.strip()]
-            threading.Thread(target=run_job,args=(jid,),kwargs={'domains':doms,'orig':'website_list.xlsx','on':on},daemon=True).start()
+            threading.Thread(target=run_job,args=(jid,),kwargs={'domains':doms,'orig':'website_list.xlsx','on':on,'token':token},daemon=True).start()
         s._s(200,'application/json',json.dumps({'id':jid}).encode())
 
 if __name__=='__main__':
