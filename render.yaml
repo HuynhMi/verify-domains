@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: verify-domains
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python placement_web.py
