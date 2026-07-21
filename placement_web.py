@@ -239,7 +239,7 @@ table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13px}th,td{p
    <label><input type="checkbox" data-k="crypto" checked>Crypto Scam</label>
    <label><input type="checkbox" data-k="lau" checked>Nội dung lậu (Piracy)</label>
    <label><input type="checkbox" data-k="gambling" checked>Cờ bạc / Betting</label>
-   <label><input type="checkbox" data-k="adult" checked>Người lớn (Adult)</label></div>
+   <label><input type="checkbox" data-k="adult" checked>Nội dung dành cho người trưởng thành</label></div>
   <div class="ckgrp t2"><span>⚠️ Cấp 2 · Chất lượng thấp</span>
    <label><input type="checkbox" data-k="age" checked>Domain mới (&lt; 6 tháng)</label>
    <label><input type="checkbox" data-k="earn" checked>Kiếm tiền / Thưởng / Khảo sát</label>
