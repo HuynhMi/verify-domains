@@ -30,6 +30,20 @@ GitHub Pages **không** chạy được vì đây là Python server. Dùng Rende
 
 Server tự đọc biến môi trường `PORT` và bind `0.0.0.0` khi chạy trên host.
 
+### Đặt mật khẩu (nên làm khi để public)
+
+Link Render mặc định ai có cũng vào được. Bật mật khẩu bằng cách thêm biến môi trường
+trong **Render → service → Environment**:
+
+| Key | Value |
+|-----|-------|
+| `APP_PASSWORD` | mật khẩu bạn chọn (bắt buộc để bật) |
+| `APP_USER` | tên đăng nhập (tuỳ chọn, mặc định `team`) |
+
+Sau khi đặt, trình duyệt sẽ hỏi đăng nhập trước khi vào tool. **Không đặt** thì tool mở
+tự do — hợp lý khi chạy local. Nhớ dùng HTTPS (link onrender.com đã có sẵn HTTPS) để mật
+khẩu không bị lộ trên đường truyền.
+
 **Lưu ý bản miễn phí:** service ngủ sau 15 phút không dùng, lần mở lại đầu tiên chậm
 (~30 giây khởi động). Xử lý vài trăm domain lần đầu mất vài phút vì phải tải từng trang.
 

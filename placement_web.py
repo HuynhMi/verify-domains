@@ -1,8 +1,13 @@
 # -*- coding: utf-8 -*-
 """PLACEMENT LABELER — web tool local. Nhập list website HOẶC chọn Excel -> bảng kết quả + tải file (thêm cột 'loại website')."""
 import http.server, socketserver, threading, json, cgi, os, re, time, datetime, urllib.request, uuid, webbrowser
-import concurrent.futures as cf
+import concurrent.futures as cf, base64, hmac
 import pandas as pd
+
+# Mật khẩu bảo vệ — chỉ bật khi có biến môi trường APP_PASSWORD (đặt trên host).
+# Chạy local không có biến này thì không hỏi mật khẩu.
+APP_USER=os.environ.get('APP_USER','team')
+APP_PASSWORD=os.environ.get('APP_PASSWORD')
 
 HERE=os.path.dirname(os.path.abspath(__file__))
 OUTDIR=os.path.join(HERE,'labeled_output'); os.makedirs(OUTDIR,exist_ok=True)
@@ -349,7 +354,18 @@ $('go').onclick=async()=>{
 class H(http.server.BaseHTTPRequestHandler):
     def log_message(s,*a): pass
     def _s(s,code,ct,b): s.send_response(code);s.send_header('Content-Type',ct);s.send_header('Content-Length',str(len(b)));s.end_headers();s.wfile.write(b)
+    def _auth_ok(s):
+        if not APP_PASSWORD: return True
+        h=s.headers.get('Authorization','')
+        if h.startswith('Basic '):
+            try:
+                u,_,p=base64.b64decode(h[6:]).decode('utf-8','ignore').partition(':')
+                if hmac.compare_digest(u,APP_USER) and hmac.compare_digest(p,APP_PASSWORD): return True
+            except Exception: pass
+        s.send_response(401); s.send_header('WWW-Authenticate','Basic realm="verify-domains"')
+        s.send_header('Content-Length','0'); s.end_headers(); return False
     def do_GET(s):
+        if not s._auth_ok(): return
         from urllib.parse import urlparse,parse_qs
         u=urlparse(s.path); q=parse_qs(u.query)
         if u.path=='/': s._s(200,'text/html; charset=utf-8',PAGE.encode('utf-8'))
@@ -364,6 +380,7 @@ class H(http.server.BaseHTTPRequestHandler):
             else: s._s(404,'text/plain',b'not found')
         else: s._s(404,'text/plain',b'404')
     def do_POST(s):
+        if not s._auth_ok(): return
         if s.path!='/process': return s._s(404,'text/plain',b'404')
         form=cgi.FieldStorage(fp=s.rfile,headers=s.headers,environ={'REQUEST_METHOD':'POST','CONTENT_TYPE':s.headers['Content-Type']})
         jid=uuid.uuid4().hex; JOBS[jid]={'status':'run','done':0,'total':0}
